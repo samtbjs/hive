@@ -1,24 +1,25 @@
-name: hive
-description: Hive - Verifiable Financial Identity for Informal & Thin-File Earners (UI scaffold only)
+name: verifiable_financial_identity
+description: A Flutter financial identity dashboard for informal earners.
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
-  intl: ^0.19.0
-  fl_chart: ^0.69.0
-  http: ^1.2.2
+
+  cupertino_icons: ^1.0.8
   provider: ^6.1.2
+  http: ^1.2.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../providers/income_provider.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../credentials/credentials_screen.dart';
@@ -7,9 +8,6 @@ import '../sharing/sharing_screen.dart';
 import '../why/why_screen.dart';
 import '../settings/settings_screen.dart';
 
-/// Hosts the bottom navigation bar and swaps between the 5 primary tabs.
-/// Dashboard income polling is explicitly started/stopped here because the
-/// IndexedStack keeps every tab mounted even when it is not visible.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -61,32 +59,12 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _selectTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.space_dashboard_outlined),
-            selectedIcon: Icon(Icons.space_dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.verified_outlined),
-            selectedIcon: Icon(Icons.verified),
-            label: 'Credentials',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.share_outlined),
-            selectedIcon: Icon(Icons.share),
-            label: 'Sharing',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.help_outline),
-            selectedIcon: Icon(Icons.help),
-            label: 'Why',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.space_dashboard_outlined), selectedIcon: const Icon(Icons.space_dashboard), label: context.tr('dashboard')),
+          NavigationDestination(icon: const Icon(Icons.verified_outlined), selectedIcon: const Icon(Icons.verified), label: context.tr('credentials')),
+          NavigationDestination(icon: const Icon(Icons.share_outlined), selectedIcon: const Icon(Icons.share), label: context.tr('sharing')),
+          NavigationDestination(icon: const Icon(Icons.help_outline), selectedIcon: const Icon(Icons.help), label: context.tr('why')),
+          NavigationDestination(icon: const Icon(Icons.settings_outlined), selectedIcon: const Icon(Icons.settings), label: context.tr('settings')),
         ],
       ),
     );

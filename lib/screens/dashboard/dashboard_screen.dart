@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 import '../../providers/app_state_provider.dart';
@@ -8,6 +9,7 @@ import '../../providers/obligations_provider.dart';
 import '../../providers/financial_reliability_provider.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/trust_score_gauge.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -21,7 +23,7 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your Financial Identity'),
+        title: Text(context.tr('dashboardTitle')),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
@@ -47,8 +49,8 @@ class DashboardScreen extends StatelessWidget {
             _GreetingCard(name: appState.userName),
             const SizedBox(height: AppSpacing.lg),
 
-            const SectionHeader(
-              title: 'Multi-source income',
+            SectionHeader(
+              title: context.tr('multiSourceIncome'),
               subtitle: 'One ledger across gigs, freelance work & bank inflows',
             ),
             _PeriodSelector(income: income),
@@ -69,7 +71,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
 
             SectionHeader(
-              title: 'Unified ledger',
+              title: context.tr('unifiedLedger'),
               subtitle: '${income.filteredTransactions.length} transactions · pull down to refresh',
             ),
             if (income.filteredTransactions.isEmpty)
@@ -83,8 +85,8 @@ class DashboardScreen extends StatelessWidget {
               _LedgerList(income: income),
             const SizedBox(height: AppSpacing.lg),
 
-            const SectionHeader(
-              title: 'Financial reliability profile',
+            SectionHeader(
+              title: context.tr('financialReliability'),
               subtitle: 'Cash flow, obligations and repayment strength',
             ),
             _ReliabilityPeriodSelector(reliability: reliability),
@@ -98,8 +100,8 @@ class DashboardScreen extends StatelessWidget {
             _ObligationsAndReceivablesCard(obligations: obligations),
             const SizedBox(height: AppSpacing.lg),
 
-            const SectionHeader(
-              title: 'Trust Score',
+            SectionHeader(
+              title: context.tr('trustScore'),
               subtitle: 'An explainable alternative-credit signal',
             ),
             _TrustScoreCard(reliability: reliability),
@@ -1047,58 +1049,15 @@ class _TrustScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = ((reliability.trustScore - 300) / 600)
-        .clamp(0.0, 1.0)
-        .toDouble();
-
     return AppCard(
       accentColor: AppColors.accentTrust,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 138,
-                  height: 138,
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 11,
-                    strokeCap: StrokeCap.round,
-                    backgroundColor: AppColors.border,
-                    valueColor:
-                        const AlwaysStoppedAnimation(AppColors.accentTrust),
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${reliability.trustScore}',
-                      style: AppTextStyles.displayNumber,
-                    ),
-                    Text('out of 900', style: AppTextStyles.caption),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.accentTrustSoft,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                reliability.trustLabel,
-                style: AppTextStyles.bodyStrong.copyWith(
-                  color: AppColors.accentTrust,
-                ),
-              ),
+            child: TrustScoreGauge(
+              score: reliability.trustScore,
+              label: reliability.trustLabel,
             ),
           ),
           const SizedBox(height: AppSpacing.lg),

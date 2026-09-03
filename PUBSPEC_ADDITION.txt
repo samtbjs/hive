@@ -1,0 +1,4 @@
+Add fl_chart to your existing pubspec.yaml dependencies block, then run flutter pub get:
+
+dependencies:
+  fl_chart: ^0.69.0

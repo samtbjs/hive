@@ -42,7 +42,7 @@ class ApiService {
     // TODO: replace with real endpoint call once backend is live
     final uri = ApiConfig.buildUri(ApiConfig.incomeTransactions);
     final response = await _client.get(uri, headers: _headers);
-    final body = _decodeList(response.body);
+    final body = _decodeTransactionList(response.body);
     return body.map((e) => Transaction.fromJson(e)).toList();
   }
 
@@ -123,6 +123,29 @@ class ApiService {
   }
 
   // ---- helpers --------------------------------------------------------------
+
+
+  List<Map<String, dynamic>> _decodeTransactionList(String body) {
+    if (body.isEmpty) return [];
+    final decoded = jsonDecode(body);
+    if (decoded is List) {
+      return decoded.cast<Map<String, dynamic>>();
+    }
+    if (decoded is Map<String, dynamic>) {
+      final transactions = decoded['transactions'];
+      if (transactions is List) {
+        return transactions.cast<Map<String, dynamic>>();
+      }
+      final data = decoded['data'];
+      if (data is List) {
+        return data.cast<Map<String, dynamic>>();
+      }
+      if (data is Map<String, dynamic> && data['transactions'] is List) {
+        return (data['transactions'] as List).cast<Map<String, dynamic>>();
+      }
+    }
+    return [];
+  }
 
   List<Map<String, dynamic>> _decodeList(String body) {
     if (body.isEmpty) return [];

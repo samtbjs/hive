@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/income_provider.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../credentials/credentials_screen.dart';
 import '../sharing/sharing_screen.dart';
@@ -6,9 +8,8 @@ import '../why/why_screen.dart';
 import '../settings/settings_screen.dart';
 
 /// Hosts the bottom navigation bar and swaps between the 5 primary tabs.
-/// Only Dashboard has real, restyled content right now — Credentials,
-/// Sharing, Why and Settings are placeholders on the new design system so
-/// navigation works end-to-end while those features are built out.
+/// Dashboard income polling is explicitly started/stopped here because the
+/// IndexedStack keeps every tab mounted even when it is not visible.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -18,6 +19,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  IncomeProvider? _incomeProvider;
+  bool _pollingInitialized = false;
 
   static const _screens = [
     DashboardScreen(),
@@ -28,12 +31,36 @@ class _AppShellState extends State<AppShell> {
   ];
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _incomeProvider ??= context.read<IncomeProvider>();
+    if (!_pollingInitialized) {
+      _pollingInitialized = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _incomeProvider?.setDashboardVisible(true);
+      });
+    }
+  }
+
+  void _selectTab(int index) {
+    if (_index == index) return;
+    setState(() => _index = index);
+    _incomeProvider?.setDashboardVisible(index == 0);
+  }
+
+  @override
+  void dispose() {
+    _incomeProvider?.setDashboardVisible(false);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.space_dashboard_outlined),

@@ -21,6 +21,8 @@ class ApiConfig {
   static const String obligations = '/v1/obligations';
   // TODO: replace with real endpoint
   static const String obligationById = '/v1/obligations/{id}';
+  // TODO: replace with real endpoint
+  static const String receivables = '/v1/receivables';
 
   // ---- Credentials / proofs -----------------------------------------------
   // TODO: replace with real endpoint

@@ -57,6 +57,15 @@ class ApiService {
     return body.map((e) => Obligation.fromJson(e)).toList();
   }
 
+  /// GET money expected from clients/customers but not collected yet.
+  Future<List<Receivable>> fetchReceivables() async {
+    // TODO: replace with real endpoint call once backend is live
+    final uri = ApiConfig.buildUri(ApiConfig.receivables);
+    final response = await _client.get(uri, headers: _headers);
+    final body = _decodeList(response.body);
+    return body.map((e) => Receivable.fromJson(e)).toList();
+  }
+
   // ---- Credentials / proofs ---------------------------------------------------
 
   /// GET all issued credentials/proofs for the user.

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/app_state_provider.dart';
 import 'providers/income_provider.dart';
+import 'providers/obligations_provider.dart';
+import 'providers/financial_reliability_provider.dart';
 import 'screens/shell/app_shell.dart';
 
 void main() {
@@ -21,6 +23,22 @@ class VfidApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AppStateProvider()..loadAll()),
         ChangeNotifierProvider(create: (_) => IncomeProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ObligationsProvider()..loadObligations(),
+        ),
+        ChangeNotifierProxyProvider2<IncomeProvider, ObligationsProvider,
+            FinancialReliabilityProvider>(
+          create: (_) => FinancialReliabilityProvider(),
+          update: (_, income, obligations, reliability) {
+            reliability!.updateInputs(
+              transactions: income.transactions,
+              recurringObligations: obligations.monthlyRecurringObligations,
+              onTimePaymentRate: obligations.onTimePaymentRate,
+              usingDemoIncome: income.isUsingDemoData,
+            );
+            return reliability;
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Verifiable Financial Identity',

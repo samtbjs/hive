@@ -4,6 +4,8 @@ import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 import '../../providers/app_state_provider.dart';
 import '../../providers/income_provider.dart';
+import '../../providers/obligations_provider.dart';
+import '../../providers/financial_reliability_provider.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/section_header.dart';
 
@@ -14,6 +16,8 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppStateProvider>();
     final income = context.watch<IncomeProvider>();
+    final obligations = context.watch<ObligationsProvider>();
+    final reliability = context.watch<FinancialReliabilityProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -28,7 +32,9 @@ class DashboardScreen extends StatelessWidget {
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: income.refreshIncome,
+        onRefresh: () async {
+          await Future.wait([income.refreshIncome(), obligations.refresh()]);
+        },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
@@ -38,10 +44,7 @@ class DashboardScreen extends StatelessWidget {
             AppSpacing.xxl,
           ),
           children: [
-            _GreetingCard(
-              name: appState.userName,
-              score: appState.reliabilityScore,
-            ),
+            _GreetingCard(name: appState.userName),
             const SizedBox(height: AppSpacing.lg),
 
             const SectionHeader(
@@ -80,56 +83,26 @@ class DashboardScreen extends StatelessWidget {
               _LedgerList(income: income),
             const SizedBox(height: AppSpacing.lg),
 
-            const SectionHeader(title: 'Reliability metrics'),
-            const AppCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _MetricRow(label: 'Income stability', value: 0.82),
-                  Divider(
-                    height: 1,
-                    indent: AppSpacing.md,
-                    endIndent: AppSpacing.md,
-                  ),
-                  _MetricRow(label: 'Payment consistency', value: 0.91),
-                  Divider(
-                    height: 1,
-                    indent: AppSpacing.md,
-                    endIndent: AppSpacing.md,
-                  ),
-                  _MetricRow(
-                    label: 'Receivables collected on time',
-                    value: 0.68,
-                  ),
-                ],
-              ),
+            const SectionHeader(
+              title: 'Financial reliability profile',
+              subtitle: 'Cash flow, obligations and repayment strength',
             ),
+            _ReliabilityPeriodSelector(reliability: reliability),
+            const SizedBox(height: AppSpacing.sm),
+            AppCard(
+              child: _CashFlowTrendCard(reliability: reliability),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _RepaymentCapacityCard(reliability: reliability),
+            const SizedBox(height: AppSpacing.md),
+            _ObligationsAndReceivablesCard(obligations: obligations),
             const SizedBox(height: AppSpacing.lg),
 
-            const SectionHeader(title: 'Cash flow snapshot'),
-            AppCard(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _CashFlowTile(
-                      label: 'Selected inflow',
-                      value: _formatCurrency(income.totalIncome),
-                      color: AppColors.success,
-                      icon: Icons.arrow_downward_rounded,
-                    ),
-                  ),
-                  Container(width: 1, height: 44, color: AppColors.divider),
-                  Expanded(
-                    child: _CashFlowTile(
-                      label: 'Obligations',
-                      value: _formatCurrency(appState.totalObligations),
-                      color: AppColors.danger,
-                      icon: Icons.arrow_upward_rounded,
-                    ),
-                  ),
-                ],
-              ),
+            const SectionHeader(
+              title: 'Trust Score',
+              subtitle: 'An explainable alternative-credit signal',
             ),
+            _TrustScoreCard(reliability: reliability),
           ],
         ),
       ),
@@ -662,13 +635,509 @@ class _StatusLabel extends StatelessWidget {
   }
 }
 
-/// Greeting + reliability score ring. Uses the trust-gold accent for the
-/// ring itself, since the reliability score is a verification signal.
+class _ReliabilityPeriodSelector extends StatelessWidget {
+  const _ReliabilityPeriodSelector({required this.reliability});
+
+  final FinancialReliabilityProvider reliability;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      children: [
+        _PeriodChip(
+          label: 'Weekly',
+          selected: reliability.selectedPeriod == ReliabilityPeriod.weekly,
+          onSelected: () => reliability.setPeriod(ReliabilityPeriod.weekly),
+        ),
+        _PeriodChip(
+          label: 'Monthly',
+          selected: reliability.selectedPeriod == ReliabilityPeriod.monthly,
+          onSelected: () => reliability.setPeriod(ReliabilityPeriod.monthly),
+        ),
+      ],
+    );
+  }
+}
+
+class _CashFlowTrendCard extends StatelessWidget {
+  const _CashFlowTrendCard({required this.reliability});
+
+  final FinancialReliabilityProvider reliability;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = reliability.cashFlowPoints;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Cash flow trend', style: AppTextStyles.title),
+            const Spacer(),
+            _CashFlowLegend(color: AppColors.success, label: 'Income'),
+            const SizedBox(width: 10),
+            _CashFlowLegend(color: AppColors.danger, label: 'Outflow'),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        SizedBox(
+          height: 170,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _CashFlowTrendPainter(points: points),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            for (final point in points)
+              Expanded(
+                child: Text(
+                  point.label,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.caption,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CashFlowLegend extends StatelessWidget {
+  const _CashFlowLegend({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: AppTextStyles.caption),
+      ],
+    );
+  }
+}
+
+class _CashFlowTrendPainter extends CustomPainter {
+  _CashFlowTrendPainter({required this.points});
+
+  final List<CashFlowPoint> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+
+    final gridPaint = Paint()
+      ..color = AppColors.divider
+      ..strokeWidth = 1;
+
+    for (var i = 0; i < 4; i++) {
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    var maxValue = 0.0;
+    for (final point in points) {
+      if (point.income > maxValue) maxValue = point.income;
+      if (point.outflow > maxValue) maxValue = point.outflow;
+    }
+    if (maxValue <= 0) return;
+
+    final usableHeight = size.height - 12;
+    final stepX = points.length == 1 ? 0.0 : size.width / (points.length - 1);
+
+    Offset pointFor(int index, double value) {
+      final x = points.length == 1 ? size.width / 2 : index * stepX;
+      final y = usableHeight - (value / maxValue * usableHeight) + 6;
+      return Offset(x, y);
+    }
+
+    final incomePath = Path();
+    final outflowPath = Path();
+
+    for (var i = 0; i < points.length; i++) {
+      final incomePoint = pointFor(i, points[i].income);
+      final outflowPoint = pointFor(i, points[i].outflow);
+
+      if (i == 0) {
+        incomePath.moveTo(incomePoint.dx, incomePoint.dy);
+        outflowPath.moveTo(outflowPoint.dx, outflowPoint.dy);
+      } else {
+        incomePath.lineTo(incomePoint.dx, incomePoint.dy);
+        outflowPath.lineTo(outflowPoint.dx, outflowPoint.dy);
+      }
+    }
+
+    final incomePaint = Paint()
+      ..color = AppColors.success
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final outflowPaint = Paint()
+      ..color = AppColors.danger
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawPath(incomePath, incomePaint);
+    canvas.drawPath(outflowPath, outflowPaint);
+
+    final incomeDotPaint = Paint()..color = AppColors.success;
+    final outflowDotPaint = Paint()..color = AppColors.danger;
+    for (var i = 0; i < points.length; i++) {
+      canvas.drawCircle(pointFor(i, points[i].income), 4, incomeDotPaint);
+      canvas.drawCircle(pointFor(i, points[i].outflow), 4, outflowDotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CashFlowTrendPainter oldDelegate) {
+    return oldDelegate.points != points;
+  }
+}
+
+class _RepaymentCapacityCard extends StatelessWidget {
+  const _RepaymentCapacityCard({required this.reliability});
+
+  final FinancialReliabilityProvider reliability;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      accentColor: AppColors.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: const Icon(
+                  Icons.savings_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Repayment Capacity', style: AppTextStyles.title),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            _formatCurrency(reliability.repaymentCapacity),
+            style: AppTextStyles.displayNumber.copyWith(color: AppColors.primary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Estimated amount left each month after regular obligations, based on recent average income.',
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Avg. income ${_formatCurrency(reliability.averageMonthlyIncome)}  ·  Regular obligations ${_formatCurrency(reliability.averageRecurringObligations)}',
+            style: AppTextStyles.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ObligationsAndReceivablesCard extends StatelessWidget {
+  const _ObligationsAndReceivablesCard({required this.obligations});
+
+  final ObligationsProvider obligations;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Text('Recurring payments', style: AppTextStyles.title),
+                const Spacer(),
+                Text(
+                  _formatCurrency(obligations.monthlyRecurringObligations),
+                  style: AppTextStyles.bodyStrong,
+                ),
+              ],
+            ),
+          ),
+          for (var i = 0; i < obligations.obligations.length; i++) ...[
+            _FinancialItemRow(
+              icon: _obligationIcon(obligations.obligations[i].type),
+              title: obligations.obligations[i].name,
+              subtitle: 'Due ${_formatDueDate(obligations.obligations[i].dueDate)}',
+              amount: obligations.obligations[i].amount,
+              status: obligations.obligations[i].status,
+            ),
+            if (i != obligations.obligations.length - 1)
+              const Divider(
+                height: 1,
+                indent: AppSpacing.md,
+                endIndent: AppSpacing.md,
+              ),
+          ],
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Text('Outstanding receivables', style: AppTextStyles.title),
+                const Spacer(),
+                Text(
+                  _formatCurrency(obligations.outstandingReceivables),
+                  style: AppTextStyles.bodyStrong.copyWith(color: AppColors.success),
+                ),
+              ],
+            ),
+          ),
+          for (var i = 0; i < obligations.receivables.length; i++) ...[
+            _FinancialItemRow(
+              icon: Icons.request_quote_outlined,
+              title: obligations.receivables[i].name,
+              subtitle:
+                  '${obligations.receivables[i].source} · Due ${_formatDueDate(obligations.receivables[i].dueDate)}',
+              amount: obligations.receivables[i].amount,
+              status: obligations.receivables[i].status,
+              receivable: true,
+            ),
+            if (i != obligations.receivables.length - 1)
+              const Divider(
+                height: 1,
+                indent: AppSpacing.md,
+                endIndent: AppSpacing.md,
+              ),
+          ],
+          if (obligations.isLoading)
+            const LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation(AppColors.primary),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinancialItemRow extends StatelessWidget {
+  const _FinancialItemRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.status,
+    this.receivable = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final double amount;
+  final String status;
+  final bool receivable;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _financialStatusColor(status);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 11,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: (receivable ? AppColors.success : AppColors.primary)
+                  .withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: receivable ? AppColors.success : AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.bodyStrong),
+                const SizedBox(height: 3),
+                Text(subtitle, style: AppTextStyles.caption),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _formatCurrency(amount),
+                style: AppTextStyles.bodyStrong.copyWith(
+                  color: receivable ? AppColors.success : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Text(
+                  _titleCase(status),
+                  style: AppTextStyles.caption.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrustScoreCard extends StatelessWidget {
+  const _TrustScoreCard({required this.reliability});
+
+  final FinancialReliabilityProvider reliability;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = ((reliability.trustScore - 300) / 600)
+        .clamp(0.0, 1.0)
+        .toDouble();
+
+    return AppCard(
+      accentColor: AppColors.accentTrust,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 138,
+                  height: 138,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 11,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: AppColors.border,
+                    valueColor:
+                        const AlwaysStoppedAnimation(AppColors.accentTrust),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${reliability.trustScore}',
+                      style: AppTextStyles.displayNumber,
+                    ),
+                    Text('out of 900', style: AppTextStyles.caption),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.accentTrustSoft,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Text(
+                reliability.trustLabel,
+                style: AppTextStyles.bodyStrong.copyWith(
+                  color: AppColors.accentTrust,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('What is driving this score', style: AppTextStyles.bodyStrong),
+          const SizedBox(height: AppSpacing.sm),
+          for (final factor in reliability.trustFactors) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 5),
+                  child: Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 15,
+                    color: AppColors.success,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(child: Text(factor, style: AppTextStyles.bodySmall)),
+              ],
+            ),
+            const SizedBox(height: 7),
+          ],
+          const Divider(height: AppSpacing.lg),
+          Text(
+            'Demo formula: 60% on-time payments + 40% income consistency.',
+            style: AppTextStyles.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Greeting card for the portable verified identity profile.
 class _GreetingCard extends StatelessWidget {
-  const _GreetingCard({required this.name, required this.score});
+  const _GreetingCard({required this.name});
 
   final String name;
-  final int score;
 
   @override
   Widget build(BuildContext context) {
@@ -716,66 +1185,18 @@ class _GreetingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.md),
-          Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: CircularProgressIndicator(
-                      value: score / 100,
-                      strokeWidth: 6,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.accentTrust),
-                    ),
-                  ),
-                  Text('$score', style: AppTextStyles.bodyStrong),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text('Reliability', style: AppTextStyles.caption),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.label, required this.value});
-
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: AppTextStyles.body),
-              Text(
-                '${(value * 100).toStringAsFixed(0)}%',
-                style: AppTextStyles.bodyStrong,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: value,
-              minHeight: 6,
-              backgroundColor: AppColors.border,
-              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: AppColors.accentTrustSoft,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.accentTrust),
+            ),
+            child: const Icon(
+              Icons.verified_user_outlined,
+              color: AppColors.accentTrust,
+              size: 28,
             ),
           ),
         ],
@@ -784,39 +1205,37 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
-class _CashFlowTile extends StatelessWidget {
-  const _CashFlowTile({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(label, style: AppTextStyles.caption),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: AppTextStyles.numericMd.copyWith(color: color, fontSize: 18),
-        ),
-      ],
-    );
+IconData _obligationIcon(String type) {
+  switch (type.toLowerCase()) {
+    case 'rent':
+      return Icons.home_outlined;
+    case 'emi':
+    case 'loan':
+      return Icons.account_balance_outlined;
+    case 'utility':
+      return Icons.bolt_outlined;
+    default:
+      return Icons.receipt_long_outlined;
   }
+}
+
+Color _financialStatusColor(String status) {
+  switch (status.toLowerCase()) {
+    case 'paid':
+      return AppColors.success;
+    case 'overdue':
+      return AppColors.danger;
+    default:
+      return AppColors.warning;
+  }
+}
+
+String _formatDueDate(DateTime date) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  return '${date.day} ${months[date.month - 1]}';
 }
 
 String _sourceLabel(String source) {

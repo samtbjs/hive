@@ -38,11 +38,17 @@ class AppCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            if (accentColor != null) Container(width: 3, color: accentColor),
-            Expanded(child: Padding(padding: padding, child: child)),
+            Padding(padding: padding, child: child),
+            if (accentColor != null)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(color: accentColor!),
+              ),
           ],
         ),
       ),
